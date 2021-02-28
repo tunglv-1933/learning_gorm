@@ -12,14 +12,12 @@ import (
 )
 
 type course struct {
-	ID             int `gorm:"primaryKey;autoIncrement"`
 	Title          string
-	courseContents []courseContent
+	CourseContents []courseContent
 	gorm.Model
 }
 
 type courseContent struct {
-	ID          int `gorm:"primaryKey;autoIncrement"`
 	Title       string
 	Description string
 	CourseID    int
@@ -51,21 +49,20 @@ func main() {
 	router.GET("/course/:id", func(c *gin.Context) { getCourse(c, db) })
 	router.PUT("/course/:id", func(c *gin.Context) { updateCourse(c, db) })
 	router.DELETE("/course/:id", func(c *gin.Context) { deleteCourse(c, db) })
-	router.POST("/course/:id", func(c *gin.Context) { createCourseContent(c, db) })
 
 	router.Run(":8000")
 }
 
 func getCourses(c *gin.Context, db *gorm.DB) {
 	var courses []course
-	db.Find(&courses)
+	db.Preload("CourseContents").Find(&courses)
 	c.JSON(http.StatusOK, courses)
 }
 
 func createCourse(c *gin.Context, db *gorm.DB) {
 	var newCourse course
 
-	if err := c.ShouldBind(&newCourse); err == nil {
+	if c.ShouldBindJSON(&newCourse) == nil {
 		db.Create(&newCourse)
 		c.JSON(http.StatusOK, newCourse)
 	} else {
@@ -76,7 +73,7 @@ func createCourse(c *gin.Context, db *gorm.DB) {
 
 func getCourse(c *gin.Context, db *gorm.DB) {
 	var findCourse course
-	db.Where("id = ?", c.Param("id")).Find(&findCourse)
+	db.Where("id = ?", c.Param("id")).Preload("CourseContents").Find(&findCourse)
 
 	if findCourse.ID > 0 {
 		c.JSON(http.StatusOK, findCourse)
@@ -87,13 +84,13 @@ func getCourse(c *gin.Context, db *gorm.DB) {
 }
 
 func updateCourse(c *gin.Context, db *gorm.DB) {
-	var findCourse course
-	db.Where("id = ?", c.Param("id")).Find(&findCourse)
+	var updateCourse course
+	db.Where("id = ?", c.Param("id")).Find(&updateCourse)
 
-	if findCourse.ID > 0 {
-		c.Bind(&findCourse)
-		db.Save(&findCourse)
-		c.JSON(http.StatusOK, findCourse)
+	if updateCourse.ID > 0 {
+		c.ShouldBindJSON(&updateCourse)
+		db.Save(&updateCourse)
+		c.JSON(http.StatusOK, updateCourse)
 	} else {
 		c.JSON(http.StatusOK, gin.H{"message": "not found!"})
 	}
@@ -109,27 +106,6 @@ func deleteCourse(c *gin.Context, db *gorm.DB) {
 	if findCourse.ID > 0 {
 		db.Delete(&findCourse)
 		c.JSON(http.StatusOK, gin.H{"message": "delete successfull"})
-	} else {
-		c.JSON(http.StatusOK, gin.H{"message": "not found!"})
-	}
-
-	return
-}
-
-func createCourseContent(c *gin.Context, db *gorm.DB) {
-	var newCourseContent courseContent
-	var findCourse course
-
-	db.Where("id = ?", c.Param("id")).Find(&findCourse)
-
-	if findCourse.ID > 0 {
-		if err := c.ShouldBind(&newCourseContent); err == nil {
-			newCourseContent.CourseID = findCourse.ID
-			db.Create(&newCourseContent)
-			c.JSON(http.StatusOK, newCourseContent)
-		} else {
-			c.JSON(http.StatusOK, gin.H{"message": "error!"})
-		}
 	} else {
 		c.JSON(http.StatusOK, gin.H{"message": "not found!"})
 	}
